@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кто машина Тьюринга? — Комната допроса</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #00ff66;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        h1 {
+            font-size: 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 5px #00ff66;
+        }
+        #chat-container {
+            width: 100%;
+            max-width: 600px;
+            flex-grow: 1;
+            border: 2px solid #00ff66;
+            background-color: #1a1a1a;
+            box-shadow: 0 0 15px rgba(0, 255, 102, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        #messages {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .msg {
+            line-height: 1.4;
+            word-break: break-word;
+        }
+        .msg.system {
+            color: #888888;
+            font-style: italic;
+        }
+        .msg.user {
+            color: #ffffff;
+        }
+        .sender {
+            color: #00ff66;
+            font-weight: bold;
+        }
+        #input-area {
+            display: flex;
+            border-top: 2px solid #00ff66;
+            background-color: #121212;
+        }
+        #message-input {
+            flex-grow: 1;
+            background: transparent;
+            border: none;
+            color: #00ff66;
+            padding: 15px;
+            font-family: inherit;
+            font-size: 16px;
+            outline: none;
+        }
+        #send-btn {
+            background-color: #00ff66;
+            color: #121212;
+            border: none;
+            padding: 0 25px;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: background 0.2s;
+        }
+        #send-btn:hover {
+            background-color: #00cc52;
+        }
+        #controls {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .reset-btn {
+            background: transparent;
+            border: 1px solid #ff3333;
+            color: #ff3333;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-family: inherit;
+            text-transform: uppercase;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .reset-btn:hover {
+            background-color: #ff3333;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>[ ТЕРМИНАЛ: КТО МАШИНА ТЬЮРИНГА? ]</h1>
+
+    <div id="chat-container">
+        <div id="messages"></div>
+        <div id="input-area">
+            <input type="text" id="message-input" placeholder="Введите сообщение..." autocomplete="off">
+            <button id="send-btn">Отправить</button>
+        </div>
+    </div>
+
+    <div id="controls">
+        <button class="reset-btn" id="reset-btn">Сбросить игру</button>
+    </div>
+
+    <script>
+        // Динамическое определение протокола (ws или wss для https/production)
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
+
+        const messagesContainer = document.getElementById('messages');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const resetBtn = document.getElementById('reset-btn');
+
+        // Обработка входящих WebSocket-сообщений
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            const msgElement = document.createElement('div');
+
+            if (data.type === 'system') {
+                msgElement.className = 'msg system';
+                msgElement.innerText = `>> ${data.text}`;
+            } 
+            else if (data.type === 'message') {
+                msgElement.className = 'msg user';
+                msgElement.innerHTML = `<span class="sender">${data.sender}:</span> ${data.text}`;
+            }
+            else if (data.type === 'clear_chat') {
+                messagesContainer.innerHTML = '';
+                return;
+            }
+
+            messagesContainer.appendChild(msgElement);
+            // Плавный скролл вниз чата
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        };
+
+        // Отправка текстового сообщения
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (text) {
+                socket.send(JSON.stringify({ type: 'message', text: text }));
+                messageInput.value = '';
+            }
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        
+        messageInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Запрос на сброс комнат
+        resetBtn.addEventListener('click', function() {
+            if (confirm('Вы уверены, что хотите перезапустить игру и сбросить имена?')) {
+                socket.send(JSON.stringify({ type: 'reset' }));
+            }
+        });
+
+        socket.onclose = function() {
+            const errorElement = document.createElement('div');
+            errorElement.className = 'msg system';
+            errorElement.style.color = '#ff3333';
+            errorElement.innerText = '>> Соединение с сервером потеряно. Попробуйте обновить страницу.';
+            messagesContainer.appendChild(errorElement);
+        };
+    </script>
+</body>
+</html>
